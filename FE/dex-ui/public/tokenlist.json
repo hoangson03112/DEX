@@ -1,0 +1,12 @@
+{
+  "name": "My DEX Token List",
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "timestamp": "2025-10-19T00:00:00.000Z",
+  "keywords": ["default", "sepolia"],
+  "logoURI": "https://via.placeholder.com/256",
+  "tokens": []
+}
