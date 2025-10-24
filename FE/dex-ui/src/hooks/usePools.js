@@ -24,51 +24,58 @@ export default function usePools(provider) {
   const fetchPools = useCallback(async () => {
     setLoading(true);
     setError("");
-    
+
     try {
       // Use wallet provider if connected, otherwise use public RPC
       const readProvider = provider || getPublicProvider();
       const factory = getFactory(readProvider);
-      
+
       // Get total number of pairs
       const allPairsLength = await factory.allPairsLength();
       const pairsCount = Number(allPairsLength);
-      
-      console.log(`🔍 Found ${pairsCount} pools in factory`);
-      
+
       const poolsData = [];
-      
+
       // Fetch each pair
       for (let i = 0; i < pairsCount; i++) {
         try {
           const pairAddress = await factory.allPairs(i);
           const pair = new Contract(pairAddress, PAIR_ABI, readProvider);
-          
+
           // Get tokens
           const token0Address = await pair.token0();
           const token1Address = await pair.token1();
-          
+
           // Get token info
-          const token0Contract = new Contract(token0Address, ERC20_ABI, readProvider);
-          const token1Contract = new Contract(token1Address, ERC20_ABI, readProvider);
-          
-          const [symbol0, symbol1, decimals0, decimals1, name0, name1] = await Promise.all([
-            token0Contract.symbol(),
-            token1Contract.symbol(),
-            token0Contract.decimals(),
-            token1Contract.decimals(),
-            token0Contract.name(),
-            token1Contract.name(),
-          ]);
-          
+          const token0Contract = new Contract(
+            token0Address,
+            ERC20_ABI,
+            readProvider
+          );
+          const token1Contract = new Contract(
+            token1Address,
+            ERC20_ABI,
+            readProvider
+          );
+
+          const [symbol0, symbol1, decimals0, decimals1, name0, name1] =
+            await Promise.all([
+              token0Contract.symbol(),
+              token1Contract.symbol(),
+              token0Contract.decimals(),
+              token1Contract.decimals(),
+              token0Contract.name(),
+              token1Contract.name(),
+            ]);
+
           // Get reserves
           const reserves = await pair.getReserves();
           const totalSupply = await pair.totalSupply();
-          
+
           const reserve0 = formatUnits(reserves.reserve0, decimals0);
           const reserve1 = formatUnits(reserves.reserve1, decimals1);
           const supply = formatUnits(totalSupply, 18); // LP tokens always 18 decimals
-          
+
           poolsData.push({
             address: pairAddress,
             token0: {
@@ -87,15 +94,12 @@ export default function usePools(provider) {
             reserve1: parseFloat(reserve1),
             totalSupply: parseFloat(supply),
           });
-          
-          console.log(`  ✅ Pool ${i + 1}: ${symbol0}/${symbol1}`);
         } catch (err) {
           console.error(`  ❌ Failed to load pool ${i}:`, err);
         }
       }
-      
+
       setPools(poolsData);
-      console.log(`🎉 Loaded ${poolsData.length} pools`);
     } catch (err) {
       console.error("❌ Error loading pools:", err);
       setError(err?.message || String(err));

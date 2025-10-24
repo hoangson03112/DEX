@@ -12,6 +12,8 @@ import {
   Coins,
   Droplets,
 } from "lucide-react";
+import { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import useWallet from "./hooks/useWallet.js";
 import useTokens from "./hooks/useTokens.js";
 import useSwap from "./hooks/useSwap.js";
@@ -23,34 +25,7 @@ import CreateToken from "./components/CreateToken.jsx";
 import AddLiquidity from "./components/AddLiquidity.jsx";
 import RemoveLiquidity from "./components/RemoveLiquidity.jsx";
 import PoolsList from "./components/PoolsList.jsx";
-
-const TOKENS = [
-  {
-    symbol: "ETH",
-    name: "Ethereum",
-    decimals: 18,
-  },
-  {
-    symbol: "USDT",
-    name: "Tether",
-    decimals: 6,
-  },
-  {
-    symbol: "USDC",
-    name: "USD Coin",
-    decimals: 6,
-  },
-  {
-    symbol: "WBTC",
-    name: "Wrapped Bitcoin",
-    decimals: 8,
-  },
-  {
-    symbol: "ARB",
-    name: "Arbitrum",
-    decimals: 18,
-  },
-];
+import UniverseBackground from "./components/UniverseBackground.tsx";
 
 function TokenBadge({ token, onClick }) {
   if (!token)
@@ -140,28 +115,28 @@ function TokenModal({ open, onClose, onSelect, tokens, onImportToken }) {
   const [query, setQuery] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
-  
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = tokens && tokens.length > 0 ? tokens : TOKENS;
+    const list = tokens && tokens.length > 0 ? tokens : [];
     if (!q) return list;
     return list.filter(
       (t) =>
-        (t.symbol && t.symbol.toLowerCase().includes(q)) || 
+        (t.symbol && t.symbol.toLowerCase().includes(q)) ||
         (t.name && t.name.toLowerCase().includes(q)) ||
         (t.address && t.address.toLowerCase().includes(q))
     );
   }, [query, tokens]);
-  
+
   // Check if query is a valid address (0x... 42 chars)
   const isValidAddress = query.trim().match(/^0x[a-fA-F0-9]{40}$/);
   const alreadyInList = tokens.find(
-    t => t.address && t.address.toLowerCase() === query.trim().toLowerCase()
+    (t) => t.address && t.address.toLowerCase() === query.trim().toLowerCase()
   );
-  
+
   const handleImport = async () => {
     if (!isValidAddress || !onImportToken) return;
-    
+
     setImporting(true);
     setImportError("");
     try {
@@ -175,7 +150,7 @@ function TokenModal({ open, onClose, onSelect, tokens, onImportToken }) {
       setImporting(false);
     }
   };
-  
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">
@@ -203,7 +178,7 @@ function TokenModal({ open, onClose, onSelect, tokens, onImportToken }) {
               <X className="w-5 h-5 text-slate-300" />
             </button>
           </div>
-          
+
           {/* Import token button */}
           {isValidAddress && !alreadyInList && (
             <div className="p-3 border-b border-slate-800 bg-slate-800/40">
@@ -229,7 +204,7 @@ function TokenModal({ open, onClose, onSelect, tokens, onImportToken }) {
               )}
             </div>
           )}
-          
+
           <div className="max-h-96 overflow-y-auto p-2">
             {filtered.map((t, idx) => (
               <button
@@ -282,8 +257,8 @@ export default function SwapApp() {
   const [createTokenOpen, setCreateTokenOpen] = useState(false);
 
   // Load tokens from factory
-  const { 
-    tokens: availableTokens, 
+  const {
+    tokens: availableTokens,
     loading: tokensLoading,
     importToken,
   } = useTokens(provider);
@@ -412,18 +387,20 @@ export default function SwapApp() {
 
     try {
       const { amountIn, amountOut, reserveIn, reserveOut } = quoteInfo;
-      
+
       // Price before swap (market price)
-      const priceBefore = Number(formatUnits(reserveOut, toToken.decimals)) / 
-                          Number(formatUnits(reserveIn, fromToken.decimals));
-      
+      const priceBefore =
+        Number(formatUnits(reserveOut, toToken.decimals)) /
+        Number(formatUnits(reserveIn, fromToken.decimals));
+
       // Price after swap (execution price)
-      const priceAfter = Number(formatUnits(amountOut, toToken.decimals)) / 
-                         Number(formatUnits(amountIn, fromToken.decimals));
-      
+      const priceAfter =
+        Number(formatUnits(amountOut, toToken.decimals)) /
+        Number(formatUnits(amountIn, fromToken.decimals));
+
       // Price impact = ((priceBefore - priceAfter) / priceBefore) * 100
       const impact = ((priceBefore - priceAfter) / priceBefore) * 100;
-      
+
       if (impact < 0.01) return "<0.01%";
       return `${impact.toFixed(2)}%`;
     } catch {
@@ -450,10 +427,16 @@ export default function SwapApp() {
   const handleSwap = async () => {
     if (!canSwap) return;
 
+    const toastId = toast.loading(
+      `Swapping ${fromAmount} ${fromToken.symbol} for ${toToken.symbol}...`
+    );
+
     try {
       // Calculate deadline timestamp
       const deadlineTimestamp = Math.floor(Date.now() / 1000) + deadline * 60;
-      
+
+      toast.loading("Waiting for approval...", { id: toastId });
+
       await executeSwap({
         amountIn: fromAmount,
         amountOutMin: minReceived.toString(),
@@ -461,6 +444,15 @@ export default function SwapApp() {
         tokenOut: toToken,
         deadline: deadlineTimestamp,
       });
+
+      toast.success(
+        `Successfully swapped ${fromAmount} ${fromToken.symbol} for ${toToken.symbol}!`,
+        {
+          id: toastId,
+          duration: 6000,
+          icon: "🎉",
+        }
+      );
 
       // Refresh balances after successful swap
       setTimeout(() => {
@@ -471,8 +463,10 @@ export default function SwapApp() {
       // Reset amounts
       setFromAmount("");
       setToAmount("");
-    } catch {
-      // Swap failed, error already displayed
+    } catch (err) {
+      // Swap failed, show error
+      const errorMsg = err?.message || "Swap failed";
+      toast.error(errorMsg, { id: toastId, duration: 5000 });
     }
   };
 
@@ -483,469 +477,516 @@ export default function SwapApp() {
   }, [fromAmount, toAmount]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      {/* Header */}
-      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-slate-900/60 bg-slate-900/50 border-b border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500" />
-            <span className="font-semibold tracking-tight">SwapX</span>
-          </div>
-          <div className="hidden md:flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab("swap")}
-              className={`px-3 py-1.5 rounded-xl text-sm transition ${
-                activeTab === "swap"
-                  ? "bg-slate-800/70 text-slate-100"
-                  : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              Swap
-            </button>
-            <button
-              onClick={() => setActiveTab("liquidity")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition ${
-                activeTab === "liquidity"
-                  ? "bg-slate-800/70 text-slate-100"
-                  : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Droplets className="w-4 h-4" />
-              Liquidity
-            </button>
-            <button
-              onClick={() => setActiveTab("pools")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition ${
-                activeTab === "pools"
-                  ? "bg-slate-800/70 text-slate-100"
-                  : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Droplets className="w-4 h-4" />
-              Pools
-            </button>
-            <button
-              onClick={() => setActiveTab("tokens")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition ${
-                activeTab === "tokens"
-                  ? "bg-slate-800/70 text-slate-100"
-                  : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Coins className="w-4 h-4" />
-              Tokens
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="p-2 rounded-xl hover:bg-slate-800"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
-            {address ? (
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800">
-                <span className="text-xs text-slate-400">
-                  {isOnSepolia ? "Sepolia" : `Chain ${chainId}`}
-                </span>
-                <span className="text-sm font-medium">{shortAddr}</span>
-                <button
-                  onClick={disconnect}
-                  className="text-xs text-slate-400 hover:text-slate-200"
-                >
-                  Disconnect
-                </button>
-              </div>
-            ) : (
+    <>
+      {/* Universe Background - ở dưới cùng */}
+      <UniverseBackground />
+
+      <div className="min-h-screen text-slate-100 relative z-10">
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: "#1e293b",
+              color: "#f1f5f9",
+              border: "1px solid #334155",
+              borderRadius: "12px",
+              padding: "12px 16px",
+            },
+            success: {
+              iconTheme: {
+                primary: "#10b981",
+                secondary: "#f1f5f9",
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: "#ef4444",
+                secondary: "#f1f5f9",
+              },
+            },
+            loading: {
+              iconTheme: {
+                primary: "#6366f1",
+                secondary: "#f1f5f9",
+              },
+            },
+          }}
+        />
+
+        {/* Header */}
+        <header className="sticky top-0 z-40 backdrop-blur-md supports-[backdrop-filter]:bg-slate-900/20 bg-slate-900/20 border-b border-slate-700/30">
+          <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                width={"15%"}
+                src="../public/walleticon-removebg-preview.png"
+              />
+              <span className="font-semibold tracking-tight">LVSwap</span>
+            </div>
+            <div className="hidden md:flex items-center gap-2">
               <button
-                onClick={connect}
-                disabled={connecting}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60"
+                onClick={() => setActiveTab("swap")}
+                className={`px-3 py-1.5 rounded-xl text-sm transition ${
+                  activeTab === "swap"
+                    ? "bg-slate-800/70 text-slate-100"
+                    : "hover:bg-slate-800 text-slate-400"
+                }`}
               >
-                <Wallet className="w-4 h-4" />
-                <span className="text-sm font-medium">
-                  {connecting ? "Connecting…" : "Connect"}
-                </span>
+                Swap
               </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Main */}
-      <main className="max-w-6xl mx-auto px-4 py-10">
-        {activeTab === "swap" ? (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr,360px] gap-8">
-            {/* Swap Card */}
-            <div className="mx-auto w-full max-w-xl">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 shadow-2xl p-4 md:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Swap</h2>
-              <div className="text-xs text-slate-400">
-                Network:{" "}
-                <span className="text-slate-200">
-                  {isOnSepolia ? "Sepolia" : "Unknown"}
-                </span>
-              </div>
-            </div>
-
-            {/* From */}
-            <div className="rounded-2xl p-4 bg-slate-800/60 border border-slate-800">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-[160px]">
-                  <TokenBadge
-                    token={fromToken}
-                    onClick={() => {
-                      setPickSide("from");
-                      setTokenModalOpen(true);
-                    }}
-                  />
-                  <BalanceDisplay
-                    balance={fromBalance}
-                    loading={fromBalanceLoading}
-                  />
-                </div>
-                <div className="flex-1 text-right">
-                  <NumberInput
-                    value={fromAmount}
-                    onChange={onAmountChange}
-                    placeholder="0.0"
-                  />
-                  {quoteLoading && (
-                    <div className="text-xs text-slate-400 mt-1 flex items-center justify-end gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Calculating...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Flip */}
-            <div className="flex justify-center -my-2">
               <button
-                onClick={handleFlip}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 -translate-y-1"
+                onClick={() => setActiveTab("liquidity")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition ${
+                  activeTab === "liquidity"
+                    ? "bg-slate-800/70 text-slate-100"
+                    : "hover:bg-slate-800 text-slate-400"
+                }`}
               >
-                <Repeat className="w-5 h-5" />
+                <Droplets className="w-4 h-4" />
+                Liquidity
+              </button>
+              <button
+                onClick={() => setActiveTab("pools")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition ${
+                  activeTab === "pools"
+                    ? "bg-slate-800/70 text-slate-100"
+                    : "hover:bg-slate-800 text-slate-400"
+                }`}
+              >
+                <Droplets className="w-4 h-4" />
+                Pools
+              </button>
+              <button
+                onClick={() => setActiveTab("tokens")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition ${
+                  activeTab === "tokens"
+                    ? "bg-slate-800/70 text-slate-100"
+                    : "hover:bg-slate-800 text-slate-400"
+                }`}
+              >
+                <Coins className="w-4 h-4" />
+                Tokens
               </button>
             </div>
-
-            {/* To */}
-            <div className="rounded-2xl p-4 bg-slate-800/60 border border-slate-800">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-[160px]">
-                  <TokenBadge
-                    token={toToken}
-                    onClick={() => {
-                      setPickSide("to");
-                      setTokenModalOpen(true);
-                    }}
-                  />
-                  <BalanceDisplay
-                    balance={toBalance}
-                    loading={toBalanceLoading}
-                  />
-                </div>
-                <div className="flex-1 text-right">
-                  <NumberInput
-                    value={toAmount}
-                    onChange={() => {}}
-                    placeholder="0.0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="mt-4 space-y-2">
-              {fromToken && toToken && rate > 0 && (
-                <StatLine
-                  label={`Rate`}
-                  value={`1 ${fromToken.symbol} = ${rate.toFixed(6)} ${
-                    toToken.symbol
-                  }`}
-                />
-              )}
-              {toToken && minReceived > 0 && (
-                <StatLine
-                  label={`Min received (${slippage}% slippage)`}
-                  value={`${minReceived.toFixed(6)} ${toToken.symbol}`}
-                  icon={Info}
-                />
-              )}
-              {priceImpact && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-400 opacity-80">Price impact</span>
-                  <span className={`font-medium ${
-                    parseFloat(priceImpact) > 5 ? "text-red-400" :
-                    parseFloat(priceImpact) > 3 ? "text-yellow-400" :
-                    "text-slate-300"
-                  }`}>
-                    {priceImpact}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="p-2 rounded-xl hover:bg-slate-800"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+              {address ? (
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800">
+                  <span className="text-xs text-slate-400">
+                    {isOnSepolia ? "Sepolia" : `Chain ${chainId}`}
                   </span>
+                  <span className="text-sm font-medium">{shortAddr}</span>
+                  <button
+                    onClick={disconnect}
+                    className="text-xs text-slate-400 hover:text-slate-200"
+                  >
+                    Disconnect
+                  </button>
                 </div>
-              )}
-            </div>
-
-            {/* Price Impact Warning */}
-            {priceImpact && parseFloat(priceImpact) > 3 && (
-              <div className="mt-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5" />
-                <div className="text-sm text-yellow-400">
-                  High price impact! You will receive significantly less than expected.
-                </div>
-              </div>
-            )}
-
-            {/* Error display */}
-            {swapError && (
-              <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
-                <div className="text-sm text-red-300">{swapError}</div>
-              </div>
-            )}
-
-            {/* CTA */}
-            <div className="mt-5">
-              {!address ? (
+              ) : (
                 <button
                   onClick={connect}
                   disabled={connecting}
-                  className="w-full py-3 rounded-2xl font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60"
                 >
-                  {connecting ? "Connecting..." : "Connect Wallet"}
+                  <Wallet className="w-4 h-4" />
+                  <span className="text-sm font-medium">
+                    {connecting ? "Connecting…" : "Connect"}
+                  </span>
                 </button>
-              ) : !isOnSepolia ? (
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Main */}
+        <main className="max-w-6xl mx-auto px-4 py-10">
+          {activeTab === "swap" ? (
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr,360px] gap-8">
+              {/* Swap Card */}
+              <div className="mx-auto w-full max-w-xl">
+                <div className="rounded-3xl border border-white-400/30 backdrop-blur-md supports-[backdrop-filter]:bg-slate-900/20 bg-slate-900/20 l shadow-2xl p-4 md:p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">Swap</h2>
+                    <div className="text-xs text-slate-400">
+                      Network:{" "}
+                      <span className="text-slate-200">
+                        {isOnSepolia ? "Sepolia" : "Unknown"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* From */}
+                  <div className="rounded-2xl p-4 bg-slate-800/60 border border-slate-800">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-[160px]">
+                        <TokenBadge
+                          token={fromToken}
+                          onClick={() => {
+                            setPickSide("from");
+                            setTokenModalOpen(true);
+                          }}
+                        />
+                        <BalanceDisplay
+                          balance={fromBalance}
+                          loading={fromBalanceLoading}
+                        />
+                      </div>
+                      <div className="flex-1 text-right">
+                        <NumberInput
+                          value={fromAmount}
+                          onChange={onAmountChange}
+                          placeholder="0.0"
+                        />
+                        {quoteLoading && (
+                          <div className="text-xs text-slate-400 mt-1 flex items-center justify-end gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Calculating...</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Flip */}
+                  <div className="flex justify-center -my-2">
+                    <button
+                      onClick={handleFlip}
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 -translate-y-1"
+                    >
+                      <Repeat className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* To */}
+                  <div className="rounded-2xl p-4 bg-slate-800/60 border border-slate-800">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-[160px]">
+                        <TokenBadge
+                          token={toToken}
+                          onClick={() => {
+                            setPickSide("to");
+                            setTokenModalOpen(true);
+                          }}
+                        />
+                        <BalanceDisplay
+                          balance={toBalance}
+                          loading={toBalanceLoading}
+                        />
+                      </div>
+                      <div className="flex-1 text-right">
+                        <NumberInput
+                          value={toAmount}
+                          onChange={() => {}}
+                          placeholder="0.0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="mt-4 space-y-2">
+                    {fromToken && toToken && rate > 0 && (
+                      <StatLine
+                        label={`Rate`}
+                        value={`1 ${fromToken.symbol} = ${rate.toFixed(6)} ${
+                          toToken.symbol
+                        }`}
+                      />
+                    )}
+                    {toToken && minReceived > 0 && (
+                      <StatLine
+                        label={`Min received (${slippage}% slippage)`}
+                        value={`${minReceived.toFixed(6)} ${toToken.symbol}`}
+                        icon={Info}
+                      />
+                    )}
+                    {priceImpact && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400 opacity-80">
+                          Price impact
+                        </span>
+                        <span
+                          className={`font-medium ${
+                            parseFloat(priceImpact) > 5
+                              ? "text-red-400"
+                              : parseFloat(priceImpact) > 3
+                              ? "text-yellow-400"
+                              : "text-slate-300"
+                          }`}
+                        >
+                          {priceImpact}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Price Impact Warning */}
+                  {priceImpact && parseFloat(priceImpact) > 3 && (
+                    <div className="mt-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5" />
+                      <div className="text-sm text-yellow-400">
+                        High price impact! You will receive significantly less
+                        than expected.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error display */}
+                  {swapError && (
+                    <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
+                      <div className="text-sm text-red-300">{swapError}</div>
+                    </div>
+                  )}
+
+                  {/* CTA */}
+                  <div className="mt-5">
+                    {!address ? (
+                      <button
+                        onClick={connect}
+                        disabled={connecting}
+                        className="w-full py-3 rounded-2xl font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60"
+                      >
+                        {connecting ? "Connecting..." : "Connect Wallet"}
+                      </button>
+                    ) : !isOnSepolia ? (
+                      <button
+                        disabled
+                        className="w-full py-3 rounded-2xl font-semibold bg-orange-600 text-white cursor-not-allowed"
+                      >
+                        Switch to Sepolia Network
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleSwap}
+                        disabled={!canSwap}
+                        className={`w-full py-3 rounded-2xl font-semibold transition border border-transparent ${
+                          canSwap
+                            ? "bg-indigo-600 hover:bg-indigo-500"
+                            : "bg-slate-700 text-slate-400 cursor-not-allowed border-slate-700"
+                        }`}
+                      >
+                        {swapping || approving ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            {approving ? "Approving..." : "Swapping..."}
+                          </span>
+                        ) : canSwap && fromToken && toToken ? (
+                          `Swap ${fromToken.symbol} → ${toToken.symbol}`
+                        ) : !fromToken || !toToken ? (
+                          "Select tokens"
+                        ) : !fromAmount || Number(fromAmount) === 0 ? (
+                          "Enter an amount"
+                        ) : (
+                          "Enter an amount"
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right column: Market info */}
+              <aside className="hidden lg:block">
+                <div className="rounded-3xl border border-gray-400/20 backdrop-blur-md supports-[backdrop-filter]:bg-slate-900/20 bg-slate-900/20    p-5 sticky top-24">
+                  <h3 className="font-semibold mb-4">Market</h3>
+                  {fromToken && toToken ? (
+                    <div className="space-y-3 text-sm">
+                      <Row>
+                        <span className="text-slate-400">Pair</span>
+                        <span>
+                          {fromToken.symbol}/{toToken.symbol}
+                        </span>
+                      </Row>
+                      {rate > 0 && (
+                        <Row>
+                          <span className="text-slate-400">Rate</span>
+                          <span>
+                            {rate.toFixed(6)} {toToken.symbol}
+                          </span>
+                        </Row>
+                      )}
+                      <Row>
+                        <span className="text-slate-400">Network</span>
+                        <span>{isOnSepolia ? "Sepolia" : "Unknown"}</span>
+                      </Row>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-400">
+                      Select tokens to view market info
+                    </div>
+                  )}
+                </div>
+              </aside>
+            </div>
+          ) : activeTab === "liquidity" ? (
+            /* Liquidity Tab */
+            <div className="max-w-2xl mx-auto space-y-6">
+              <div className="flex gap-3 mb-4">
                 <button
-                  disabled
-                  className="w-full py-3 rounded-2xl font-semibold bg-orange-600 text-white cursor-not-allowed"
-                >
-                  Switch to Sepolia Network
-                </button>
-              ) : (
-                <button
-                  onClick={handleSwap}
-                  disabled={!canSwap}
-                  className={`w-full py-3 rounded-2xl font-semibold transition border border-transparent ${
-                    canSwap
-                      ? "bg-indigo-600 hover:bg-indigo-500"
-                      : "bg-slate-700 text-slate-400 cursor-not-allowed border-slate-700"
+                  onClick={() => setLiquidityMode("add")}
+                  className={`flex-1 py-2.5 rounded-xl font-medium transition ${
+                    liquidityMode === "add"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-slate-800 text-slate-400 hover:bg-slate-700"
                   }`}
                 >
-                  {swapping || approving ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {approving ? "Approving..." : "Swapping..."}
-                    </span>
-                  ) : canSwap && fromToken && toToken ? (
-                    `Swap ${fromToken.symbol} → ${toToken.symbol}`
-                  ) : !fromToken || !toToken ? (
-                    "Select tokens"
-                  ) : !fromAmount || Number(fromAmount) === 0 ? (
-                    "Enter an amount"
-                  ) : (
-                    "Enter an amount"
-                  )}
+                  Add Liquidity
                 </button>
-              )}
-            </div>
-          </div>
-        </div>
+                <button
+                  onClick={() => setLiquidityMode("remove")}
+                  className={`flex-1 py-2.5 rounded-xl font-medium transition ${
+                    liquidityMode === "remove"
+                      ? "bg-red-600 text-white"
+                      : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                  }`}
+                >
+                  Remove Liquidity
+                </button>
+              </div>
 
-        {/* Right column: Market info */}
-        <aside className="hidden lg:block">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5 sticky top-24">
-            <h3 className="font-semibold mb-4">Market</h3>
-            {fromToken && toToken ? (
-              <div className="space-y-3 text-sm">
-                <Row>
-                  <span className="text-slate-400">Pair</span>
-                  <span>
-                    {fromToken.symbol}/{toToken.symbol}
-                  </span>
-                </Row>
-                {rate > 0 && (
-                  <Row>
-                    <span className="text-slate-400">Rate</span>
-                    <span>
-                      {rate.toFixed(6)} {toToken.symbol}
-                    </span>
-                  </Row>
+              <div className="rounded-3xl border border-gray-400/20 bg-white/10 backdrop-blur-xl shadow-2xl p-6">
+                {liquidityMode === "add" ? (
+                  <AddLiquidity
+                    pools={pools}
+                    tokens={availableTokens}
+                    provider={provider}
+                    signerPromise={signerPromise}
+                    address={address}
+                    onSuccess={() => {
+                      refetchPools();
+                    }}
+                  />
+                ) : (
+                  <RemoveLiquidity
+                    pools={pools}
+                    provider={provider}
+                    signerPromise={signerPromise}
+                    address={address}
+                    onSuccess={() => {
+                      // Refresh balances and pools
+                      refetchPools();
+                    }}
+                  />
                 )}
-                <Row>
-                  <span className="text-slate-400">Network</span>
-                  <span>{isOnSepolia ? "Sepolia" : "Unknown"}</span>
-                </Row>
               </div>
-            ) : (
-              <div className="text-sm text-slate-400">
-                Select tokens to view market info
+            </div>
+          ) : activeTab === "pools" ? (
+            /* Pools Tab */
+            <div className="max-w-4xl mx-auto">
+              <div className="rounded-3xl border border-gray-400/20 bg-white/10 backdrop-blur-xl shadow-2xl p-6">
+                <PoolsList
+                  pools={pools}
+                  loading={poolsLoading}
+                  onRefresh={refetchPools}
+                />
               </div>
-            )}
-          </div>
-        </aside>
-          </div>
-        ) : activeTab === "liquidity" ? (
-          /* Liquidity Tab */
-          <div className="max-w-2xl mx-auto space-y-6">
-            <div className="flex gap-3 mb-4">
-              <button
-                onClick={() => setLiquidityMode("add")}
-                className={`flex-1 py-2.5 rounded-xl font-medium transition ${
-                  liquidityMode === "add"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                }`}
-              >
-                Add Liquidity
-              </button>
-              <button
-                onClick={() => setLiquidityMode("remove")}
-                className={`flex-1 py-2.5 rounded-xl font-medium transition ${
-                  liquidityMode === "remove"
-                    ? "bg-red-600 text-white"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                }`}
-              >
-                Remove Liquidity
-              </button>
             </div>
-            
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/70 shadow-2xl p-6">
-              {liquidityMode === "add" ? (
-                <AddLiquidity
-                  tokens={availableTokens}
-                  provider={provider}
-                  signerPromise={signerPromise}
-                  address={address}
-                  onSuccess={() => {
-                    // Refresh balances and pools
-                    refetchPools();
-                  }}
-                />
-              ) : (
-                <RemoveLiquidity
-                  tokens={availableTokens}
-                  provider={provider}
-                  signerPromise={signerPromise}
-                  address={address}
-                  onSuccess={() => {
-                    // Refresh balances and pools
-                    refetchPools();
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        ) : activeTab === "pools" ? (
-          /* Pools Tab */
-          <div className="max-w-4xl mx-auto">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/70 shadow-2xl p-6">
-              <PoolsList
-                pools={pools}
-                loading={poolsLoading}
-                onRefresh={refetchPools}
+          ) : (
+            /* Tokens Tab */
+            <div className="max-w-4xl mx-auto">
+              <TokensList
+                tokens={availableTokens}
+                loading={tokensLoading}
+                onCreateToken={() => setCreateTokenOpen(true)}
+                onImportToken={importToken}
               />
             </div>
-          </div>
-        ) : (
-          /* Tokens Tab */
-          <div className="max-w-4xl mx-auto">
-            <TokensList
-              tokens={availableTokens}
-              loading={tokensLoading}
-              onCreateToken={() => setCreateTokenOpen(true)}
-              onImportToken={importToken}
-            />
-          </div>
-        )}
-      </main>
+          )}
+        </main>
 
-      {/* Modals */}
-      {/* Settings Modal */}
-      <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)}>
-        <div className="space-y-4">
-          <div>
-            <div className="text-sm text-slate-300 mb-2">
-              Slippage tolerance
+        {/* Modals */}
+        {/* Settings Modal */}
+        <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)}>
+          <div className="space-y-4">
+            <div>
+              <div className="text-sm text-slate-300 mb-2">
+                Slippage tolerance
+              </div>
+              <div className="flex items-center gap-2">
+                {[0.1, 0.5, 1].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSlippage(s)}
+                    className={`px-3 py-1.5 rounded-xl border ${
+                      slippage === s
+                        ? "bg-indigo-600 border-indigo-500"
+                        : "bg-slate-800 border-slate-700 hover:bg-slate-700"
+                    }`}
+                  >
+                    {s}%
+                  </button>
+                ))}
+                <div className="flex items-center gap-2 ml-2 px-2 py-1.5 rounded-xl bg-slate-800 border border-slate-700">
+                  <input
+                    value={slippage}
+                    onChange={(e) => setSlippage(Number(e.target.value || 0))}
+                    className="w-16 bg-transparent outline-none text-slate-100 text-sm"
+                  />
+                  <span className="text-slate-400 text-sm">%</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {[0.1, 0.5, 1].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSlippage(s)}
-                  className={`px-3 py-1.5 rounded-xl border ${
-                    slippage === s
-                      ? "bg-indigo-600 border-indigo-500"
-                      : "bg-slate-800 border-slate-700 hover:bg-slate-700"
-                  }`}
-                >
-                  {s}%
-                </button>
-              ))}
-              <div className="flex items-center gap-2 ml-2 px-2 py-1.5 rounded-xl bg-slate-800 border border-slate-700">
-                <input
-                  value={slippage}
-                  onChange={(e) => setSlippage(Number(e.target.value || 0))}
-                  className="w-16 bg-transparent outline-none text-slate-100 text-sm"
-                />
-                <span className="text-slate-400 text-sm">%</span>
+            <div>
+              <div className="text-sm text-slate-300 mb-2">
+                Transaction deadline
+              </div>
+              <div className="flex items-center gap-2">
+                {[5, 10, 20, 30].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDeadline(d)}
+                    className={`px-3 py-1.5 rounded-xl border text-sm ${
+                      deadline === d
+                        ? "bg-indigo-600 border-indigo-500"
+                        : "bg-slate-800 border-slate-700 hover:bg-slate-700"
+                    }`}
+                  >
+                    {d}m
+                  </button>
+                ))}
+                <div className="flex items-center gap-2 ml-2 px-2 py-1.5 rounded-xl bg-slate-800 border border-slate-700">
+                  <input
+                    value={deadline}
+                    onChange={(e) => setDeadline(Number(e.target.value || 20))}
+                    className="w-12 bg-transparent outline-none text-slate-100 text-sm"
+                  />
+                  <span className="text-slate-400 text-sm">min</span>
+                </div>
               </div>
             </div>
           </div>
-          <div>
-            <div className="text-sm text-slate-300 mb-2">
-              Transaction deadline
-            </div>
-            <div className="flex items-center gap-2">
-              {[5, 10, 20, 30].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDeadline(d)}
-                  className={`px-3 py-1.5 rounded-xl border text-sm ${
-                    deadline === d
-                      ? "bg-indigo-600 border-indigo-500"
-                      : "bg-slate-800 border-slate-700 hover:bg-slate-700"
-                  }`}
-                >
-                  {d}m
-                </button>
-              ))}
-              <div className="flex items-center gap-2 ml-2 px-2 py-1.5 rounded-xl bg-slate-800 border border-slate-700">
-                <input
-                  value={deadline}
-                  onChange={(e) => setDeadline(Number(e.target.value || 20))}
-                  className="w-12 bg-transparent outline-none text-slate-100 text-sm"
-                />
-                <span className="text-slate-400 text-sm">min</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Modal>
+        </Modal>
 
-      {/* Token picker */}
-      <TokenModal
-        open={tokenModalOpen}
-        onClose={() => setTokenModalOpen(false)}
-        onSelect={(t) =>
-          pickSide === "from" ? setFromToken(t) : setToToken(t)
-        }
-        tokens={availableTokens}
-        onImportToken={importToken}
-      />
+        {/* Token picker */}
+        <TokenModal
+          open={tokenModalOpen}
+          onClose={() => setTokenModalOpen(false)}
+          onSelect={(t) =>
+            pickSide === "from" ? setFromToken(t) : setToToken(t)
+          }
+          tokens={availableTokens}
+          onImportToken={importToken}
+        />
 
-      {/* Create Token Modal */}
-      <CreateToken
-        open={createTokenOpen}
-        onClose={() => setCreateTokenOpen(false)}
-        onSuccess={async () => {
-          // Reload tokens after creating new one
-          window.location.reload();
-        }}
-        signer={signerPromise}
-      />
-    </div>
+        {/* Create Token Modal */}
+        <CreateToken
+          open={createTokenOpen}
+          onClose={() => setCreateTokenOpen(false)}
+          onSuccess={async () => {
+            // Reload tokens after creating new one
+            window.location.reload();
+          }}
+          signer={signerPromise}
+        />
+      </div>
+    </>
   );
 }

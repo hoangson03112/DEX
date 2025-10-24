@@ -1,114 +1,31 @@
-import React, { useState } from "react";
-import { parseUnits } from "ethers";
+import { useState } from "react";
 import { X, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 /**
  * Component để tạo token mới (deploy ERC20)
  */
-export default function CreateToken({ open, onClose, onSuccess, signer }) {
+export default function CreateToken({ open, onClose }) {
   const [formData, setFormData] = useState({
     name: "",
     symbol: "",
     initialSupply: "1000000",
     decimals: "18",
   });
-  const [creating, setCreating] = useState(false);
+  const [creating] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(null);
+  const [success] = useState(null);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCreate = async () => {
-    setError("Token creation feature requires deploying from Remix IDE or using a deployment script.");
-    setError("Please use the deployment script in the smart contract folder or deploy via Remix IDE.");
-    
-    // For now, this is a placeholder
-    // In production, you would:
-    // 1. Use a backend service to deploy contracts
-    // 2. Use a factory contract pattern
-    // 3. Deploy via Remix IDE and add the address manually
-    
-    /* Example implementation with factory pattern:
-    if (!signer) {
-      setError("Please connect wallet first");
-      return;
-    }
-
-    if (!formData.name || !formData.symbol) {
-      setError("Name and symbol are required");
-      return;
-    }
-
-    setCreating(true);
-    setError("");
-    setSuccess(null);
-
-    try {
-      const { ContractFactory } = await import("ethers");
-      const signerInstance = await signer;
-      
-      // Import the compiled contract ABI and bytecode
-      const ERC20MockABI = [
-        "constructor(string memory _name, string memory _symbol, uint256 _initialSupply)",
-        // ... other functions
-      ];
-      
-      const ERC20MockBytecode = "0x..."; // Full compiled bytecode
-      
-      const tokenFactory = new ContractFactory(
-        ERC20MockABI,
-        ERC20MockBytecode,
-        signerInstance
-      );
-
-      const initialSupply = parseUnits(
-        formData.initialSupply,
-        parseInt(formData.decimals)
-      );
-
-      const token = await tokenFactory.deploy(
-        formData.name,
-        formData.symbol,
-        initialSupply
-      );
-
-      await token.waitForDeployment();
-      const address = await token.getAddress();
-
-      setSuccess({
-        name: formData.name,
-        symbol: formData.symbol,
-        address: address,
-        decimals: parseInt(formData.decimals),
-      });
-
-      if (onSuccess) {
-        onSuccess({
-          name: formData.name,
-          symbol: formData.symbol,
-          address: address,
-          decimals: parseInt(formData.decimals),
-        });
-      }
-
-      setTimeout(() => {
-        setFormData({
-          name: "",
-          symbol: "",
-          initialSupply: "1000000",
-          decimals: "18",
-        });
-        setSuccess(null);
-        onClose();
-      }, 3000);
-    } catch (err) {
-      setError(err?.message || String(err));
-    } finally {
-      setCreating(false);
-    }
-    */
+    setError(
+      "Token creation feature requires deploying from Remix IDE or using a deployment script."
+    );
+    setError(
+      "Please use the deployment script in the smart contract folder or deploy via Remix IDE."
+    );
   };
 
   if (!open) return null;

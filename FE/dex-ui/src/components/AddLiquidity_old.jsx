@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Info, AlertCircle, Loader2 } from "lucide-react";
+import { Plus, Info, AlertCircle, Loader2, ArrowDown } from "lucide-react";
 import { parseUnits, formatUnits } from "ethers";
 import {
   getRouter,
@@ -13,6 +13,7 @@ import { ADDR, MAX_UINT256 } from "../services/config.js";
 import useTokenBalance from "../hooks/useTokenBalance.js";
 
 export default function AddLiquidity({
+  pools,
   tokens,
   provider,
   signerPromise,
@@ -156,7 +157,7 @@ export default function AddLiquidity({
       const amountAMin = (amountAWei * 995n) / 1000n;
       const amountBMin = (amountBWei * 995n) / 1000n;
 
-      const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
+      const deadline = Math.floor(Date.now());
 
       const signer = await signerPromise;
       const router = getRouter(signer);
@@ -188,63 +189,138 @@ export default function AddLiquidity({
       setApproving(false);
     }
   };
+  console.log(pools);
 
   return (
     <div className="space-y-4">
-      {/* Token Selection */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-sm text-slate-400 mb-2 block">Token A</label>
-          <select
-            value={tokenA?.address || ""}
-            onChange={(e) => {
-              const token = tokens?.find((t) => t.address === e.target.value);
-              setTokenA(token);
-              setAmountA("");
-              setAmountB("");
-            }}
-            className="w-full px-3 py-2 rounded-xl bg-slate-700 text-white outline-none"
-          >
-            <option value="">Select token</option>
-            {tokens?.map((token) => (
-              <option
-                key={token.address}
-                value={token.address}
-                disabled={token.address === tokenB?.address}
-              >
-                {token.symbol}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-sm text-slate-400 mb-2 block">Token B</label>
-          <select
-            value={tokenB?.address || ""}
-            onChange={(e) => {
-              const token = tokens?.find((t) => t.address === e.target.value);
-              setTokenB(token);
-              setAmountA("");
-              setAmountB("");
-            }}
-            className="w-full px-3 py-2 rounded-xl bg-slate-700 text-white outline-none"
-          >
-            <option value="">Select token</option>
-            {tokens?.map((token) => (
-              <option
-                key={token.address}
-                value={token.address}
-                disabled={token.address === tokenA?.address}
-              >
-                {token.symbol}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Mode Selector */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => handleModeChange("existing")}
+          className={`flex-1 py-2 px-4 rounded-xl font-medium transition ${
+            mode === "existing"
+              ? "bg-indigo-600 text-white"
+              : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+          }`}
+        >
+          Add to Existing Pool
+        </button>
+        <button
+          onClick={() => handleModeChange("new")}
+          className={`flex-1 py-2 px-4 rounded-xl font-medium transition ${
+            mode === "new"
+              ? "bg-indigo-600 text-white"
+              : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+          }`}
+        >
+          Create New Pool
+        </button>
       </div>
 
-      {/* Token Inputs (only show after both tokens selected) */}
-      {tokenA && tokenB && (
+      {mode === "existing" ? (
+        <>
+          {/* Step 1: Select Pool */}
+          <div className="rounded-2xl p-4 bg-slate-800/60 border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm text-slate-400">
+                Step 1: Select Pool
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              <select
+                value={selectedPool?.address || ""}
+                onChange={(e) => handlePoolSelect(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-700 text-white outline-none"
+              >
+                <option value="">Choose a pool</option>
+                {pools?.map((pool) => (
+                  <option key={pool.address} value={pool.address}>
+                    {pool.token0.symbol} / {pool.token1.symbol}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Step 2: Select Token (only show if pool is selected) */}
+          {selectedPool && (
+            <div className="rounded-2xl p-4 bg-slate-800/60 border border-slate-800">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm text-slate-400">
+                  Step 2: Select Token to Add
+                </label>
+              </div>
+              <div className="flex items-center gap-3">
+                <select
+                  value={selectedToken?.address || ""}
+                  onChange={(e) => handleTokenSelect(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-700 text-white outline-none"
+                >
+                  <option value="">Choose token</option>
+                  <option value={selectedPool.token0.address}>
+                    {selectedPool.token0.symbol}
+                  </option>
+                  <option value={selectedPool.token1.address}>
+                    {selectedPool.token1.symbol}
+                  </option>
+                </select>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Create New Pool - Token Selection */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm text-slate-400 mb-2 block">
+                Token A
+              </label>
+              <select
+                value={tokenA?.address || ""}
+                onChange={(e) => handleTokenSelect(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-700 text-white outline-none"
+              >
+                <option value="">Select token</option>
+                {tokens?.map((token) => (
+                  <option
+                    key={token.address}
+                    value={token.address}
+                    disabled={token.address === tokenB?.address}
+                  >
+                    {token.symbol}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 mb-2 block">
+                Token B
+              </label>
+              <select
+                value={tokenB?.address || ""}
+                onChange={(e) => handleTokenSelect(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-700 text-white outline-none"
+              >
+                <option value="">Select token</option>
+                {tokens?.map((token) => (
+                  <option
+                    key={token.address}
+                    value={token.address}
+                    disabled={token.address === tokenA?.address}
+                  >
+                    {token.symbol}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Token A Input (only show after token selection) */}
+      {((mode === "existing" && selectedToken) ||
+        (mode === "new" && tokenA && tokenB)) && (
         <>
           <div className="rounded-2xl p-4 bg-slate-800/60 border border-slate-800">
             <div className="flex items-center justify-between mb-2">
@@ -282,13 +358,13 @@ export default function AddLiquidity({
                 value={amountB}
                 onChange={(e) => {
                   setAmountB(e.target.value.replace(/[^0-9.]/g, ""));
-                  if (poolInfo?.exists) {
+                  if (mode === "existing") {
                     setAmountA(""); // Clear A to recalculate based on B
                   }
                 }}
                 placeholder="0.0"
                 className="flex-1 bg-transparent outline-none text-2xl text-white placeholder:text-slate-500"
-                disabled={poolInfo?.exists && amountA}
+                disabled={mode === "existing" && poolInfo?.exists && amountA}
               />
             </div>
           </div>
@@ -296,14 +372,16 @@ export default function AddLiquidity({
       )}
 
       {/* Pool Info */}
-      {poolInfo && tokenA && tokenB && (
+      {poolInfo && (
         <div className="rounded-xl p-4 bg-slate-800/40 space-y-2 text-sm">
           <div className="flex items-center gap-2 text-slate-300">
             <Info className="w-4 h-4" />
             <span className="font-medium">
               {poolInfo.exists
                 ? "Pool exists"
-                : "First liquidity provider - You set the initial price"}
+                : mode === "new"
+                ? "Creating new pool"
+                : "First liquidity provider"}
             </span>
           </div>
           {poolInfo.exists && (
@@ -331,22 +409,22 @@ export default function AddLiquidity({
         </div>
       )}
 
-      {/* Info for new pool */}
-      {tokenA && tokenB && poolInfo && !poolInfo?.exists && (
-        <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-2">
-          <Info className="w-4 h-4 text-blue-400 mt-0.5" />
-          <span className="text-sm text-blue-400">
-            Pool for {tokenA.symbol}/{tokenB.symbol} doesn't exist yet. You are
-            creating it and setting the initial price ratio.
-          </span>
-        </div>
-      )}
-
       {/* Error */}
       {error && (
         <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2">
           <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
           <span className="text-sm text-red-400">{error}</span>
+        </div>
+      )}
+
+      {/* Info for new pool */}
+      {mode === "new" && tokenA && tokenB && !poolInfo?.exists && (
+        <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-400 mt-0.5" />
+          <span className="text-sm text-blue-400">
+            You are creating a new liquidity pool for {tokenA.symbol}/
+            {tokenB.symbol}. You will set the initial price ratio.
+          </span>
         </div>
       )}
 
@@ -361,14 +439,14 @@ export default function AddLiquidity({
             <Loader2 className="w-5 h-5 animate-spin" />
             {approving
               ? "Approving..."
-              : poolInfo && !poolInfo.exists
+              : mode === "new" && !poolInfo?.exists
               ? "Creating Pool..."
               : "Adding Liquidity..."}
           </>
         ) : (
           <>
             <Plus className="w-5 h-5" />
-            {poolInfo && !poolInfo.exists
+            {mode === "new" && !poolInfo?.exists
               ? "Create Pool & Add Liquidity"
               : "Add Liquidity"}
           </>

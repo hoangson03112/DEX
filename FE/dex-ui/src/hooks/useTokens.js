@@ -75,7 +75,6 @@ export default function useTokens(provider) {
       );
       localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
 
-      // Reload tokens
       setTokens((prev) =>
         prev.filter((t) => t.address.toLowerCase() !== address.toLowerCase())
       );
@@ -90,14 +89,11 @@ export default function useTokens(provider) {
       setLoading(true);
       setError("");
       try {
-        // Use wallet provider if connected, otherwise use public RPC
         const readProvider = provider || getPublicProvider();
-        
+
         const allTokens = [];
 
-        // 1. Load from Factory pairs (auto-discover tokens with pools)
         try {
-          console.log("🔍 Scanning Factory for deployed tokens...");
           const factory = getFactory(readProvider);
           const tokenAddresses = await listAllTokensFromFactory(
             factory,
@@ -106,27 +102,21 @@ export default function useTokens(provider) {
 
           for (const addr of tokenAddresses) {
             try {
-              // Check if already in list (from Uniswap)
               const exists = allTokens.find(
                 (t) => t.address.toLowerCase() === addr.toLowerCase()
               );
               if (!exists) {
                 const info = await fetchTokenInfo(addr, readProvider);
                 allTokens.push(info);
-                console.log(`  ✅ Added ${info.symbol} from Factory`);
               }
             } catch (err) {
               console.error(`  ❌ Failed to load token ${addr}:`, err);
             }
           }
-          console.log(
-            `✅ Scanned ${tokenAddresses.length} tokens from Factory pairs`
-          );
         } catch (err) {
           console.warn("⚠️ Failed to load factory tokens:", err);
         }
 
-        // 2. Load custom imported tokens from localStorage
         const customTokens = loadCustomTokens();
         let customAdded = 0;
         for (const custom of customTokens) {
@@ -141,8 +131,6 @@ export default function useTokens(provider) {
         if (customAdded > 0) {
           console.log(`✅ Added ${customAdded} custom imported tokens`);
         }
-        
-        console.log(`🎉 Total tokens available: ${allTokens.length}`);
 
         if (!cancelled) {
           setTokens(allTokens);
