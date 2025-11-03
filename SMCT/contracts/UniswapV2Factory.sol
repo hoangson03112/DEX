@@ -25,10 +25,10 @@ contract UniswapV2Factory {
         return allPairs.length;
     }
 
-    function createPair(
-        address tokenA,
-        address tokenB
-    ) external returns (address pair) {
+    function createPair(address tokenA, address tokenB)
+        external
+        returns (address pair)
+    {
         require(tokenA != tokenB, "IDENTICAL");
         (address token0, address token1) = tokenA < tokenB
             ? (tokenA, tokenB)

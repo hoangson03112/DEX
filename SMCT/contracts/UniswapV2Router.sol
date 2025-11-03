@@ -12,7 +12,6 @@ contract UniswapV2Router {
         factory = IUniswapV2Factory(_factory);
     }
 
-    // ---------- SAFE ERC20 ----------
     function _safeTransferFrom(
         address token,
         address from,
@@ -33,7 +32,6 @@ contract UniswapV2Router {
         );
     }
 
-    // ---------- HELPER UTILS ----------
     function _pairFor(address tokenA, address tokenB)
         internal
         view
@@ -41,7 +39,7 @@ contract UniswapV2Router {
     {
         pair = factory.getPair(tokenA, tokenB);
         require(pair != address(0), "NO_PAIR");
-        zeroForOne = tokenA < tokenB; // tokenA là token0?
+        zeroForOne = tokenA < tokenB; 
     }
 
     function _pairForOrCreate(address tokenA, address tokenB)
@@ -89,7 +87,6 @@ contract UniswapV2Router {
         }
     }
 
-    // ---------- ADD LIQUIDITY ----------
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -127,7 +124,6 @@ contract UniswapV2Router {
         liquidity = IUniswapV2Pair(pair).mint(to);
     }
 
-    // ---------- REMOVE LIQUIDITY ----------
     function removeLiquidity(
         address tokenA,
         address tokenB,
@@ -153,7 +149,6 @@ contract UniswapV2Router {
         require(amountB >= amountBMin, "INSUFFICIENT_B_AMOUNT");
     }
 
-    // ---------- SWAP (ONE HOP) ----------
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -173,10 +168,8 @@ contract UniswapV2Router {
         amountOut = getAmountOut(amountIn, reserveIn, reserveOut);
         require(amountOut >= amountOutMin, "SLIPPAGE");
 
-        // Transfer tokens from user to pair
         _safeTransferFrom(path[0], msg.sender, pair, amountIn);
 
-        // Execute swap - pair will transfer tokens out to recipient
         if (zeroForOne) {
             IUniswapV2Pair(pair).swap(0, amountOut, to);
         } else {
@@ -184,7 +177,6 @@ contract UniswapV2Router {
         }
     }
 
-    // ---------- PRICING ----------
     function getAmountOut(
         uint256 amountIn,
         uint256 reserveIn,
@@ -192,7 +184,7 @@ contract UniswapV2Router {
     ) public pure returns (uint256 amountOut) {
         require(amountIn > 0, "AIN");
         require(reserveIn > 0 && reserveOut > 0, "RES");
-        uint256 amountInWithFee = amountIn * 997; // fee 0.3%
+        uint256 amountInWithFee = amountIn * 997; 
         uint256 numerator = amountInWithFee * reserveOut;
         uint256 denominator = reserveIn * 1000 + amountInWithFee;
         amountOut = numerator / denominator;

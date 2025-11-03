@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import "./interfaces/IERC20.sol";
 
 contract UniswapV2Pair is IERC20 {
-    // ---- LP ERC20 ----
     string public name;
     string public symbol;
     uint8 public immutable decimals = 18;
@@ -12,7 +11,6 @@ contract UniswapV2Pair is IERC20 {
     mapping(address => uint256) public override balanceOf;
     mapping(address => mapping(address => uint256)) public override allowance;
 
-    // ---- Pair state ----
     uint112 private reserve0;
     uint112 private reserve1;
     uint32 private blockTimestampLast;
@@ -22,7 +20,6 @@ contract UniswapV2Pair is IERC20 {
 
     uint256 public constant MIN_LIQUIDITY = 1000;
 
-    // ---- Events ----
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(
         address indexed sender,
@@ -40,7 +37,6 @@ contract UniswapV2Pair is IERC20 {
     );
     event Sync(uint112 reserve0, uint112 reserve1);
 
-    // ---- Init ----
     function initialize(address _token0, address _token1) external {
         require(token0 == address(0) && token1 == address(0), "INIT");
         token0 = _token0;
@@ -49,7 +45,6 @@ contract UniswapV2Pair is IERC20 {
         symbol = "UNI-V2";
     }
 
-    // ---- IERC20 (LP) ----
     function approve(address spender, uint256 value)
         external
         override
@@ -108,7 +103,6 @@ contract UniswapV2Pair is IERC20 {
         emit Transfer(from, address(0), value);
     }
 
-    // ---- Views ----
     function getReserves()
         public
         view
@@ -121,7 +115,6 @@ contract UniswapV2Pair is IERC20 {
         return (reserve0, reserve1, blockTimestampLast);
     }
 
-    // ---- Internals ----
     function _update(uint256 balance0, uint256 balance1) private {
         reserve0 = uint112(balance0);
         reserve1 = uint112(balance1);
@@ -160,7 +153,6 @@ contract UniswapV2Pair is IERC20 {
         }
     }
 
-    // ---- Core: add liquidity ----
     function mint(address to) external returns (uint256 liquidity) {
         (uint112 _r0, uint112 _r1, ) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
